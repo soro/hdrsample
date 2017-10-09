@@ -183,7 +183,6 @@
 //! ergonomic as possible.
 
 #![deny(
-    missing_docs,
     trivial_casts,
     trivial_numeric_casts,
     unused_extern_crates,
@@ -1723,3 +1722,5 @@ mod tests;
 #[cfg(feature = "serialization")]
 #[path = "serialization/serialization.rs"]
 pub mod serialization;
+
+pub mod sync;
