@@ -31,6 +31,7 @@ default = [ "serialization" ]
 num-traits = "0.1"
 byteorder = "1.0.0"
 flate2 = { version = "0.2.17", optional = true }
+parking_lot = "0.4"
 
 [dev-dependencies]
 rand = "0.3.15"

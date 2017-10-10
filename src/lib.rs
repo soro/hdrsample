@@ -196,6 +196,7 @@
 #![cfg_attr(all(test, feature = "bench_private"), feature(test))]
 
 extern crate num_traits as num;
+extern crate parking_lot;
 
 use std::borrow::Borrow;
 use std::cmp;
@@ -1723,4 +1724,4 @@ mod tests;
 #[path = "serialization/serialization.rs"]
 pub mod serialization;
 
-pub mod sync;
+pub mod concurrent;
