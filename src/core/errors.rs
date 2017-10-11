@@ -66,4 +66,5 @@ pub enum RecordError {
     ResizeFailedUsizeTypeTooSmall
 }
 
+#[allow(missing_docs)]
 pub struct UsizeTypeTooSmall;

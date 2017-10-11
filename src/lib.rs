@@ -203,8 +203,6 @@ use std::borrow::Borrow;
 use std::cmp;
 use std::ops::{AddAssign, SubAssign};
 use num::ToPrimitive;
-use core::counter::*;
-use core::errors::*;
 
 use iterators::HistogramIterator;
 
@@ -1612,8 +1610,9 @@ impl<T: Counter, F: Counter> PartialEq<Histogram<F>> for Histogram<T>
 mod tests;
 
 #[cfg(feature = "serialization")]
-#[path = "serialization/serialization.rs"]
 pub mod serialization;
 
 pub mod concurrent;
-pub mod core;
+mod core;
+pub use core::errors::*;
+pub use core::counter::*;
