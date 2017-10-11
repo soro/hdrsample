@@ -194,6 +194,7 @@
 
 // Enable feature(test) is enabled so that we can have benchmarks of private code
 #![cfg_attr(all(test, feature = "bench_private"), feature(test))]
+#![feature(const_atomic_usize_new)]
 
 extern crate num_traits as num;
 extern crate parking_lot;
@@ -1725,3 +1726,4 @@ mod tests;
 pub mod serialization;
 
 pub mod concurrent;
+pub mod core;
