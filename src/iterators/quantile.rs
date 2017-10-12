@@ -1,20 +1,23 @@
 use core::counter::Counter;
-use Histogram;
+use core::histogram::Histogram;
 use iterators::{HistogramIterator, PickyIterator};
+use std::marker::PhantomData;
 
 /// An iterator that will yield at quantile steps through the histogram's value range.
-pub struct Iter<'a, T: 'a + Counter> {
-    hist: &'a Histogram<T>,
-
+// these will get better interfaces once associated type defaults become a thing
+pub struct Iter<'a, T: 'a + Counter, H: 'a + Histogram<T>> {
+    hist: &'a H,
     ticks_per_half_distance: u32,
     quantile_to_iterate_to: f64,
     reached_last_recorded_value: bool,
+    counter_phantom: PhantomData<T>
 }
 
-impl<'a, T: 'a + Counter> Iter<'a, T> {
+impl<'a, T: 'a + Counter, H: 'a + Histogram<T>> Iter<'a, T, H> {
     /// Construct a new iterator. See `Histogram::iter_quantiles` for details.
-    pub fn new(hist: &'a Histogram<T>, ticks_per_half_distance: u32)
-               -> HistogramIterator<'a, T, Iter<'a, T>> {
+    pub fn new(hist: &'a H,
+               ticks_per_half_distance: u32)
+               -> HistogramIterator<'a, T, Iter<'a, T, H>, H> {
         assert!(ticks_per_half_distance > 0, "Ticks per half distance must be > 0");
 
         HistogramIterator::new(hist,
@@ -23,11 +26,12 @@ impl<'a, T: 'a + Counter> Iter<'a, T> {
                                    ticks_per_half_distance,
                                    quantile_to_iterate_to: 0.0,
                                    reached_last_recorded_value: false,
+                                   counter_phantom: PhantomData
                                })
     }
 }
 
-impl<'a, T: 'a + Counter> PickyIterator<T> for Iter<'a, T> {
+impl<'a, T: 'a + Counter, H: 'a + Histogram<T>> PickyIterator<T> for Iter<'a, T, H> {
     fn pick(&mut self, index: usize, running_total: u64) -> bool {
         let count = &self.hist.count_at_index(index)
             .expect("index must be valid by PickyIterator contract");

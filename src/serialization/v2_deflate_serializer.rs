@@ -1,5 +1,5 @@
-use super::super::Histogram;
-use core::counter::Counter;
+use core::Histogram;
+use core::Counter;
 use super::V2_COMPRESSED_COOKIE;
 use super::v2_serializer::{V2Serializer, V2SerializeError};
 use super::byteorder::{BigEndian, WriteBytesExt};
@@ -47,7 +47,7 @@ impl V2DeflateSerializer {
     /// Returns the number of bytes written, or an error.
     ///
     /// Note that `Vec<u8>` is a reasonable `Write` implementation for simple usage.
-    pub fn serialize<T: Counter, W: Write>(&mut self, h: &Histogram<T>, writer: &mut W)
+    pub fn serialize<T: Counter, H: Histogram<T>, W: Write>(&mut self, h: &H, writer: &mut W)
                                            -> Result<usize, V2DeflateSerializeError> {
         // TODO benchmark serializing in chunks rather than all at once: each uncompressed v2 chunk
         // could be compressed and written to the compressed buf, possibly using an approach like

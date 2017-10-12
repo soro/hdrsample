@@ -1,41 +1,44 @@
 use core::counter::Counter;
-use Histogram;
+use core::histogram::Histogram;
 use iterators::{HistogramIterator, PickyIterator};
+use std::marker::PhantomData;
 
 /// An iterator that will yield at fixed-size steps through the histogram's value range.
-pub struct Iter<'a, T: 'a + Counter> {
-    hist: &'a Histogram<T>,
+pub struct Iter<'a, T: 'a + Counter, H: 'a + Histogram<T>> {
+    hist: &'a H,
 
     // > 0
     value_units_per_bucket: u64,
     current_step_highest_value_reporting_level: u64,
     current_step_lowest_value_reporting_level: u64,
+    counter_phantom: PhantomData<T>
 }
 
-impl<'a, T: 'a + Counter> Iter<'a, T> {
+impl<'a, T: Counter, H: Histogram<T>> Iter<'a, T, H> {
     /// Construct a new linear iterator. See `Histogram::iter_linear` for details.
-    pub fn new(hist: &'a Histogram<T>,
+    pub fn new(hist: &'a H,
                value_units_per_bucket: u64)
-               -> HistogramIterator<'a, T, Iter<'a, T>> {
+               -> HistogramIterator<'a, T, Iter<'a, T, H>, H> {
         assert!(value_units_per_bucket > 0, "value_units_per_bucket must be > 0");
         HistogramIterator::new(hist,
                                Iter {
-                                   hist: hist,
+                                   hist: &hist,
                                    value_units_per_bucket: value_units_per_bucket,
                                    // won't underflow because value_units_per_bucket > 0
                                    current_step_highest_value_reporting_level: value_units_per_bucket - 1,
                                    current_step_lowest_value_reporting_level:
-                                       hist.lowest_equivalent(value_units_per_bucket - 1),
+                                       hist.settings().lowest_equivalent(value_units_per_bucket - 1),
+                                  counter_phantom: PhantomData
                                })
     }
 }
 
-impl<'a, T: 'a + Counter> PickyIterator<T> for Iter<'a, T> {
+impl<'a, T: Counter, H: Histogram<T>> PickyIterator<T> for Iter<'a, T, H> {
     fn pick(&mut self, index: usize, _: u64) -> bool {
-        let val = self.hist.value_for(index);
+        let val = self.hist.settings().value_for(index);
         if val >= self.current_step_lowest_value_reporting_level || index == self.hist.last_index() {
             self.current_step_highest_value_reporting_level += self.value_units_per_bucket;
-            self.current_step_lowest_value_reporting_level = self.hist
+            self.current_step_lowest_value_reporting_level = self.hist.settings()
                 .lowest_equivalent(self.current_step_highest_value_reporting_level);
             true
         } else {
@@ -49,6 +52,6 @@ impl<'a, T: 'a + Counter> PickyIterator<T> for Iter<'a, T> {
         // until we are no longer on a value that has a count, rather than util we first reach
         // the last value that has a count. The difference is subtle but important)...
         // TODO index + 1 could overflow 16-bit usize
-        self.current_step_highest_value_reporting_level + 1 < self.hist.value_for(index + 1)
+        self.current_step_highest_value_reporting_level + 1 < self.hist.settings().value_for(index + 1)
     }
 }

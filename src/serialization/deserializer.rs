@@ -1,5 +1,7 @@
 use super::{V2_COOKIE, V2_COMPRESSED_COOKIE};
-use super::super::{Counter, Histogram, RestatState};
+use core::Counter;
+use SimpleHistogram;
+use super::super::RestatState;
 use super::super::num::ToPrimitive;
 use std::io::{self, Cursor, ErrorKind, Read};
 use std::marker::PhantomData;
@@ -55,7 +57,7 @@ impl Deserializer {
     /// Note that `&[u8]` and `Cursor` are convenient implementations of `Read` if you have some
     /// bytes already in slice or `Vec` form.
     pub fn deserialize<T: Counter, R: Read>(&mut self, reader: &mut R)
-                                            -> Result<Histogram<T>, DeserializeError> {
+                                            -> Result<SimpleHistogram<T>, DeserializeError> {
         let cookie = reader.read_u32::<BigEndian>()?;
 
         return match cookie {
@@ -65,7 +67,7 @@ impl Deserializer {
         }
     }
 
-    fn deser_v2_compressed<T: Counter, R: Read>(&mut self, reader: &mut R) -> Result<Histogram<T>, DeserializeError> {
+    fn deser_v2_compressed<T: Counter, R: Read>(&mut self, reader: &mut R) -> Result<SimpleHistogram<T>, DeserializeError> {
         let payload_len = reader.read_u32::<BigEndian>()?.to_usize()
             .ok_or(DeserializeError::UsizeTypeTooSmall)?;
 
@@ -80,7 +82,7 @@ impl Deserializer {
     }
 
 
-    fn deser_v2<T: Counter, R: Read>(&mut self, reader: &mut R) -> Result<Histogram<T>, DeserializeError> {
+    fn deser_v2<T: Counter, R: Read>(&mut self, reader: &mut R) -> Result<SimpleHistogram<T>, DeserializeError> {
         let payload_len = reader.read_u32::<BigEndian>()?.to_usize()
             .ok_or(DeserializeError::UsizeTypeTooSmall)?;
         let normalizing_offset = reader.read_u32::<BigEndian>()?;
@@ -96,7 +98,7 @@ impl Deserializer {
             return Err(DeserializeError::UnsupportedFeature);
         }
 
-        let mut h = Histogram::new_with_bounds(low, high, num_digits)
+        let mut h = SimpleHistogram::new_with_bounds(low, high, num_digits)
             .map_err(|_| DeserializeError::InvalidParameters)?;
 
         if payload_len > self.payload_buf.len() {
@@ -262,20 +264,20 @@ pub fn zig_zag_decode(encoded: u64) -> i64 {
 /// of state.
 struct DecodeLoopState<T: Counter> {
     dest_index: usize,
-    phantom: PhantomData<T>
+    counter_phantom: PhantomData<T>,
 }
 
 impl<T: Counter> DecodeLoopState<T> {
     fn new() -> DecodeLoopState<T> {
         DecodeLoopState {
             dest_index: 0,
-            phantom: PhantomData
+            counter_phantom: PhantomData
         }
     }
 
     #[inline]
     fn on_decoded_num(&mut self, count_or_zeros: i64, restat_state: &mut RestatState<T>,
-                      h: &mut Histogram<T>) -> Result<(), DeserializeError> {
+                      h: &mut SimpleHistogram<T>) -> Result<(), DeserializeError> {
         if count_or_zeros < 0 {
             // For a valid histogram, negation won't overflow because you can't have anywhere close
             // to even 2^32 array length

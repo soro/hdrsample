@@ -40,7 +40,7 @@ impl V2Serializer {
     /// Returns the number of bytes written, or an error.
     ///
     /// Note that `Vec<u8>` is a reasonable `Write` implementation for simple usage.
-    pub fn serialize<T: Counter, W: Write>(&mut self, h: &Histogram<T>, writer: &mut W)
+    pub fn serialize<T: Counter, W: Write, H: Histogram<T>>(&mut self, h: &H, writer: &mut W)
                                            -> Result<usize, V2SerializeError> {
         // TODO benchmark encoding directly into target Vec
 
@@ -81,7 +81,7 @@ impl V2Serializer {
     }
 }
 
-fn max_encoded_size<T: Counter>(h: &Histogram<T>) -> Option<usize> {
+fn max_encoded_size<T: Counter, H: Histogram<T>>(h: &H) -> Option<usize> {
     h.index_for(h.max())
         .and_then(|i| counts_array_max_encoded_size(i + 1))
         .and_then(|x| x.checked_add(V2_HEADER_SIZE))
@@ -99,7 +99,7 @@ pub fn counts_array_max_encoded_size(length: usize) -> Option<usize> {
 // Only public for testing.
 /// Encode counts array into slice.
 /// The slice must be at least 9 * the number of counts that will be encoded.
-pub fn encode_counts<T: Counter>(h: &Histogram<T>, buf: &mut [u8]) -> Result<usize, V2SerializeError> {
+pub fn encode_counts<T: Counter, H: Histogram<T>>(h: &H, buf: &mut [u8]) -> Result<usize, V2SerializeError> {
     let index_limit = h.index_for(h.max()).expect("Index for max value must exist");
     let mut index = 0;
     let mut bytes_written = 0;

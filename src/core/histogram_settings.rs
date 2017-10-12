@@ -1,101 +1,50 @@
-use num::ToPrimitive;
 use core::errors::*;
 
+const ORIGINAL_MIN: u64 = (-1_i64 >> 63) as u64;
+/// Max value of a new histogram.
+const ORIGINAL_MAX: u64 = 0;
+
 #[allow(dead_code)] 
-struct HistogramSettings {
-    auto_resize: bool,
+#[derive(Debug)]
+pub struct HistogramSettings {
+    pub auto_resize: bool,
 
     // >= 2 * lowest_discernible_value
-    highest_trackable_value: u64,
+    pub highest_trackable_value: u64,
     // >= 1
-    lowest_discernible_value: u64,
+    pub lowest_discernible_value: u64,
     // in [0, 5]
-    significant_value_digits: u8,
+    pub significant_value_digits: u8,
+
+    //counts_array_length: usize,
 
     // in [1, 64]
-    bucket_count: u8,
+    pub bucket_count: u8,
     // 2^(sub_bucket_half_count_magnitude + 1) = [2, 2^18]
-    sub_bucket_count: u32,
+    pub sub_bucket_count: u32,
     // sub_bucket_count / 2 = [1, 2^17]
-    sub_bucket_half_count: u32,
+    pub sub_bucket_half_count: u32,
     // In [0, 17]
-    sub_bucket_half_count_magnitude: u8,
+    pub sub_bucket_half_count_magnitude: u8,
     // The bottom sub bucket's bits set, shifted by unit magnitude.
     // The highest bit will be (one-indexed) sub bucket count magnitude + unit_magnitude.
-    sub_bucket_mask: u64,
+    pub sub_bucket_mask: u64,
 
     // Number of leading zeros that would be used by the largest value in bucket 0.
     // in [1, 63]
-    leading_zero_count_base: u8,
+    pub leading_zero_count_base: u8,
 
     // Largest exponent of 2 that's smaller than the lowest discernible value. In [0, 62].
-    unit_magnitude: u8,
+    pub unit_magnitude: u8,
     // low unit_magnitude bits set
-    unit_magnitude_mask: u64,
+    pub unit_magnitude_mask: u64,
 
-    max_value: u64,
-    min_non_zero_value: u64
+    pub max_value: u64,
+    pub min_non_zero_value: u64
 }
 
 #[allow(dead_code)] 
 impl HistogramSettings {
-    /// Compute the lowest (and therefore highest precision) bucket index whose sub-buckets can
-    /// represent the value.
-    #[inline]
-    fn bucket_for(&self, value: u64) -> u8 {
-        // Calculates the number of powers of two by which the value is greater than the biggest
-        // value that fits in bucket 0. This is the bucket index since each successive bucket can
-        // hold a value 2x greater. The mask maps small values to bucket 0.
-        // Will not underflow because sub_bucket_mask caps the leading zeros to no more than
-        // leading_zero_count_base.
-        self.leading_zero_count_base - (value | self.sub_bucket_mask).leading_zeros() as u8
-    }
-
-    /// Compute the position inside a bucket at which the given value should be recorded, indexed
-    /// from position 0 in the bucket (in the first half, which is not used past the first bucket).
-    /// For bucket_index > 0, the result will be in the top half of the bucket.
-    #[inline]
-    fn sub_bucket_for(&self, value: u64, bucket_index: u8) -> u32 {
-        // Since bucket_index is simply how many powers of 2 greater value is than what will fit in
-        // bucket 0 (that is, what will fit in [0, sub_bucket_count)), we shift off that many
-        // powers of two, and end up with a number in [0, sub_bucket_count).
-        // For bucket_index 0, this is just value. For bucket index k > 0, we know value won't fit
-        // in bucket (k - 1) by definition, so this calculation won't end up in the lower half of
-        // [0, sub_bucket_count) because that would mean it would also fit in bucket (k - 1).
-        // As unit magnitude grows, the maximum possible bucket index should shrink because it is
-        // based off of sub_bucket_mask, so this shouldn't lead to an overlarge shift.
-        (value >> (bucket_index + self.unit_magnitude)) as u32
-    }
-
-
-    /// Find the bucket the given value should be placed in.
-    /// Returns `None` if the corresponding index cannot be represented in `usize`.
-    fn index_for(&self, value: u64) -> Option<usize> {
-        let bucket_index = self.bucket_for(value);
-        let sub_bucket_index = self.sub_bucket_for(value, bucket_index);
-
-        debug_assert!(sub_bucket_index < self.sub_bucket_count);
-        debug_assert!(bucket_index == 0 || (sub_bucket_index >= self.sub_bucket_half_count));
-
-        // Calculate the index for the first entry that will be used in the bucket (halfway through
-        // sub_bucket_count). For bucket_index 0, all sub_bucket_count entries may be used, but
-        // bucket_base_index is still set in the middle.
-        let bucket_base_index = (bucket_index as i32 + 1) << self.sub_bucket_half_count_magnitude;
-
-        // Calculate the offset in the bucket. This subtraction will result in a positive value in
-        // all buckets except the 0th bucket (since a value in that bucket may be less than half
-        // the bucket's 0 to sub_bucket_count range). However, this works out since we give bucket 0
-        // twice as much space.
-        let offset_in_bucket = sub_bucket_index as i32 - self.sub_bucket_half_count as i32;
-
-        let index = bucket_base_index + offset_in_bucket;
-        // This is always non-negative because offset_in_bucket is only negative (and only then by
-        // sub_bucket_half_count at most) for bucket 0, and bucket_base_index will be halfway into
-        // bucket 0's sub buckets in that case.
-        debug_assert!(index >= 0);
-        return index.to_usize();
-    }
-
     /// Construct a `Histogram` with known upper and lower bounds for recorded sample values.
     ///
     /// `low` is the lowest value that can be discerned (distinguished from 0) by the histogram,
@@ -116,7 +65,7 @@ impl HistogramSettings {
     /// memory at once or if storage is otherwise a concern.
     ///
     /// Returns an error if the provided parameters are invalid; see `CreationError`.
-    pub fn new_with_bounds(low: u64, high: u64, sigfig: u8) -> Result<HistogramSettings, CreationError> {
+    fn new_with_bounds(low: u64, high: u64, sigfig: u8) -> Result<HistogramSettings, CreationError> {
         // Verify argument validity
         if low < 1 {
             return Err(CreationError::LowIsZero);
@@ -197,5 +146,4 @@ impl HistogramSettings {
 
         Ok(s)
     }
-
 }

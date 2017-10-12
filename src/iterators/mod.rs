@@ -1,5 +1,6 @@
 use core::counter::Counter;
-use Histogram;
+use core::histogram::Histogram;
+use std::marker::PhantomData;
 
 /// An iterator that iterates over histogram quantiles.
 pub mod quantile;
@@ -38,14 +39,15 @@ pub trait PickyIterator<T: Counter> {
 /// how the iterators were implemented in the original HdrHistogram, so we preserve the behavior
 /// here. This is the reason why iterators such as all and recorded need to keep track of which
 /// indices they have already visited.
-pub struct HistogramIterator<'a, T: 'a + Counter, P: PickyIterator<T>> {
-    hist: &'a Histogram<T>,
+pub struct HistogramIterator<'a, T: 'a + Counter, P: PickyIterator<T>, H: 'a + Histogram<T>> {
+    hist: &'a H,
     total_count_to_index: u64,
     prev_total_count: u64,
     current_index: usize,
     fresh: bool,
     ended: bool,
     picker: P,
+    phantom_counter: PhantomData<T>
 }
 
 /// The value emitted at each step when iterating over a `Histogram`.
@@ -95,8 +97,8 @@ impl<T: Counter> IterationValue<T> {
     }
 }
 
-impl<'a, T: Counter, P: PickyIterator<T>> HistogramIterator<'a, T, P> {
-    fn new(h: &'a Histogram<T>, picker: P) -> HistogramIterator<'a, T, P> {
+impl<'a, T: Counter, P: PickyIterator<T>, H: Histogram<T>> HistogramIterator<'a, T, P, H> {
+    fn new(h: &'a H, picker: P) -> HistogramIterator<'a, T, P, H> {
         HistogramIterator {
             hist: h,
             total_count_to_index: 0,
@@ -110,7 +112,7 @@ impl<'a, T: Counter, P: PickyIterator<T>> HistogramIterator<'a, T, P> {
 
     fn current(&self) -> IterationValue<T> {
         IterationValue {
-            value: self.hist.highest_equivalent(self.hist.value_for(self.current_index)),
+            value: self.hist.settings().highest_equivalent(self.hist.value_for(self.current_index)),
             quantile: self.total_count_to_index as f64 / self.hist.count() as f64,
             count_at_value: self.hist.count_at_index(self.current_index)
                 .expect("current index cannot exceed counts length"),
@@ -119,7 +121,7 @@ impl<'a, T: Counter, P: PickyIterator<T>> HistogramIterator<'a, T, P> {
     }
 }
 
-impl<'a, T: 'a, P> Iterator for HistogramIterator<'a, T, P>
+impl<'a, T: 'a, P, H: 'a + Histogram<T>> Iterator for HistogramIterator<'a, T, P, H>
     where T: Counter,
           P: PickyIterator<T>
 {
